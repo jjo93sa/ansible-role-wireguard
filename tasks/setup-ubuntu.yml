@@ -14,6 +14,8 @@
     packages:
     - software-properties-common
     - linux-headers-{{ ansible_kernel }}
+    - openresolv
+    - qrencode
   tags:
     - wg-install
 

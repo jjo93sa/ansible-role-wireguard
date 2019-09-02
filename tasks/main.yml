@@ -28,9 +28,15 @@
   tags:
     - wg-install
 
-- name: Create WireGuard certificates directory
+- name: Set local path to key files
+  set_fact:
+    local_key_file_path: "{{ wireguard_cert_directory }}/{{ inventory_hostname }}"
+  tags:
+    wg-generate-keys
+
+- name: Create local WireGuard certificates directory
   file:
-    dest: "{{ wireguard_cert_directory }}"
+    dest: "{{ local_key_file_path }}"
     state: directory
     owner: "{{ wireguard_cert_owner }}"
     group: "{{ wireguard_cert_group }}"
@@ -44,96 +50,59 @@
   set_fact:
     wireguard_ip: "{{ wireguard_address.split('/')[0] }}"
 
-- name: Set path to private key file
-  set_fact:
-    private_key_file_path: "{{ wireguard_cert_directory }}/{{ inventory_hostname }}.private.key"
-  tags:
-    wg-generate-keys
-
-- name: Set path to public key file
-  set_fact:
-    public_key_file_path: "{{ wireguard_cert_directory }}/{{ inventory_hostname }}.public.key"
-  tags:
-    wg-generate-keys
-
-- name: Register if private key already exists
-  stat:
-    path: "{{ private_key_file_path }}"
-  register: private_key_file_stat
-  delegate_to: localhost
-  tags:
-    - wg-generate-keys
-
-- name: Generate WireGuard private key
+- name: Generate WireGuard server private key
   shell: "wg genkey"
   register: wg_private_key_result
-  with_inventory_hostnames:
-    - vpn
-  when: not private_key_file_stat.stat.exists
   tags:
     - wg-generate-keys
     - skip_ansible_lint
 
-- name: Set private key fact
+- name: Set private server key fact
   set_fact:
-    wg_private_key: "{{ wg_private_key_result.results[0].stdout }}"
-  when: not private_key_file_stat.stat.exists
+    wg_private_key: "{{ wg_private_key_result.stdout }}"
   tags:
     - wg-generate-keys
 
-- name: Generate WireGuard public key
+- name: Generate WireGuard server public key
   shell: "echo '{{ wg_private_key }}' | wg pubkey"
   register: wg_public_key_result
-  when: not private_key_file_stat.stat.exists
+  tags:
+    - wg-generate-keys
+
+- name: Set server public key fact
+  set_fact:
+    wg_public_key: "{{ wg_public_key_result.stdout }}"
+  tags:
+    - wg-generate-keys
+
+- name: Generate WireGuard clients private key
+  shell: "wg genkey"
+  register: wg_private_client_key_result
   with_inventory_hostnames:
-    - vpn
+    - clients
   tags:
     - wg-generate-keys
+    - skip_ansible_lint
 
-- name: Set public key fact
+- name: Create client private keys dictionary
   set_fact:
-    wg_public_key: "{{ wg_public_key_result.results[0].stdout }}"
-  when: not private_key_file_stat.stat.exists
+      wg_client_private_keys: "{{ wg_client_private_keys|default({}) | combine( {item.item: item.stdout} ) }}"
+  with_items: "{{ wg_private_client_key_result.results }}"
+
+- name: Generate WireGuard clients public key
+  shell: "echo '{{ wg_client_private_keys[item] }}' | wg pubkey"
+  register: wg_public_client_key_result
+  with_inventory_hostnames:
+    - clients
   tags:
     - wg-generate-keys
 
-- name: Store hosts private key locally
-  template:
-    src: "wg-privatekey.j2"
-    dest: "{{ private_key_file_path }}"
-    owner: "{{ wireguard_cert_owner }}"
-    group: "{{ wireguard_cert_group }}"
-    mode: 0644
-  when: not private_key_file_stat.stat.exists
-  delegate_to: localhost
-  tags:
-    - wg-generate-keys
-
-- name: Store hosts public key locally
-  template:
-    src: "wg-publickey.j2"
-    dest: "{{ public_key_file_path }}"
-    owner: "{{ wireguard_cert_owner }}"
-    group: "{{ wireguard_cert_group }}"
-    mode: 0644
-  when: not private_key_file_stat.stat.exists
-  delegate_to: localhost
-  tags:
-    - wg-generate-keys
-
-- name: Read private key
+- name: Create client public keys dictionary
   set_fact:
-    private_key: "{{ lookup('file', private_key_file_path) }}"
-  tags:
-    wg-config
+      wg_client_pub_keys: "{{ wg_client_pub_keys|default({}) | combine( {item.item: item.stdout} ) }}"
+  with_items: "{{ wg_public_client_key_result.results }}"
 
-- name: Read public key
-  set_fact:
-    public_key: "{{ lookup('file', public_key_file_path) }}"
-  tags:
-    wg-config
-
-- name: Create WireGuard configuration directory
+- name: Create WireGuard server configuration directory
   file:
     dest: "{{ wireguard_remote_directory }}"
     state: directory
@@ -141,7 +110,7 @@
   tags:
     - wg-config
 
-- name: Generate WireGuard configuration file
+- name: Generate WireGuard server configuration file
   template:
     src: wg.conf.j2
     dest: "{{ wireguard_remote_directory }}/{{ wireguard_interface }}.conf"
@@ -152,6 +121,29 @@
     - wg-config
   notify:
     - restart wireguard
+
+- name: Generate WireGuard client configuration files
+  template:
+    src: client.j2
+    dest: "{{ wireguard_remote_directory }}/{{ item }}.conf"
+    owner: root
+    group: root
+    mode: 0600
+  with_inventory_hostnames:
+    - clients
+  tags:
+    - wg-config
+  notify:
+    - restart wireguard
+
+- name: Copy server and client files to local
+  synchronize:
+    mode: pull
+    use_ssh_args: yes
+    src: "{{ wireguard_remote_directory }}/"
+    dest: "{{ local_key_file_path }}"
+  tags:
+    - wg-config
 
 - name: Start and enable WireGuard service
   service:

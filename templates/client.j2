@@ -1,0 +1,13 @@
+#jinja2: lstrip_blocks:"True",trim_blocks:"True"
+[Interface]
+Address = {{hostvars[item].wireguard_client_interface_ip}}
+PrivateKey = {{wg_client_private_keys[item]}}
+DNS = {{hostvars[item].wireguard_dns}}
+
+    [Peer]
+    PublicKey = {{wg_public_key}}
+    AllowedIPs = {{hostvars[item].wireguard_client_allowed_ips}}
+    Endpoint = {{wireguard_endpoint}}:{{wireguard_port}}
+    {% if hostvars[item].wireguard_persistent_keepalive is defined %}
+    PersistentKeepalive = {{hostvars[item].wireguard_persistent_keepalive}}
+    {% endif %}
