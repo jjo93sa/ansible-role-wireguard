@@ -136,6 +136,13 @@
   notify:
     - restart wireguard
 
+- name: Generate WireGuard client qr files
+  shell: "qrencode -o {{ wireguard_remote_directory }}/{{ item }}.png -t png < {{ wireguard_remote_directory }}/{{ item }}.conf"
+  with_inventory_hostnames:
+    - clients
+  tags:
+    - wg-config
+
 - name: Copy server and client files to local
   synchronize:
     mode: pull

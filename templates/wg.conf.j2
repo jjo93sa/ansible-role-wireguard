@@ -2,7 +2,7 @@
 [Interface]
 Address = {{hostvars[inventory_hostname].wireguard_address}}
 PrivateKey = {{wg_private_key}}
-ListenPort = {{wireguard_port}}
+ListenPort = {{hostvars[inventory_hostname].wireguard_port}}
 {% if hostvars[inventory_hostname].wireguard_dns is defined %}
 DNS = {{hostvars[inventory_hostname].wireguard_dns}}
 {% endif %}

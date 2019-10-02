@@ -2,12 +2,12 @@
 [Interface]
 Address = {{hostvars[item].wireguard_client_interface_ip}}
 PrivateKey = {{wg_client_private_keys[item]}}
-DNS = {{hostvars[item].wireguard_dns}}
+DNS = {{hostvars[inventory_hostname].wireguard_dns}}
 
     [Peer]
     PublicKey = {{wg_public_key}}
     AllowedIPs = {{hostvars[item].wireguard_client_allowed_ips}}
-    Endpoint = {{wireguard_endpoint}}:{{wireguard_port}}
+    Endpoint = {{hostvars[inventory_hostname].wireguard_endpoint}}:{{hostvars[inventory_hostname].wireguard_port}}
     {% if hostvars[item].wireguard_persistent_keepalive is defined %}
     PersistentKeepalive = {{hostvars[item].wireguard_persistent_keepalive}}
     {% endif %}
