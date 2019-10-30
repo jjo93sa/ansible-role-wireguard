@@ -16,6 +16,14 @@
     - wg-install
     - skip_ansible_lint
 
+- name: Open ports in iptables
+  iptables_raw:
+    name: wireguard_open_port
+    state: '{{ wireguard_open_port | ternary("present", "absent") }}'
+    rules: '-A INPUT -p udp --dport {{ wireguard_open_port }} -j ACCEPT'
+  tags: iptables
+
+
 - name: Enable WireGuard kernel module
   modprobe:
     name: wireguard

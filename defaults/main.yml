@@ -15,7 +15,7 @@ wireguard_cert_group: "root"
 wireguard_remote_directory: "/etc/wireguard"
 
 # The port WireGuard will listen on.
-wireguard_port: "51820"
+wireguard_open_port: "51820"
 
 # The interface name that wireguard should use.
 wireguard_interface: "wg0"
