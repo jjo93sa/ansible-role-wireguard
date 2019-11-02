@@ -85,30 +85,30 @@
 
 - name: Generate WireGuard clients private key
   shell: "wg genkey"
-  register: wg_private_client_key_result
-  with_inventory_hostnames:
-    - clients
+  register: wg_client_private_keys_result
+  with_items:
+    - "{{ wireguard_client_list }}"
   tags:
     - wg-generate-keys
     - skip_ansible_lint
 
 - name: Create client private keys dictionary
   set_fact:
-      wg_client_private_keys: "{{ wg_client_private_keys|default({}) | combine( {item.item: item.stdout} ) }}"
-  with_items: "{{ wg_private_client_key_result.results }}"
+      wg_client_private_keys_dict: "{{ wg_client_private_keys_dict|default({}) | combine( {item.item.name: item.stdout} ) }}"
+  with_items: "{{ wg_client_private_keys_result.results }}"
 
 - name: Generate WireGuard clients public key
-  shell: "echo '{{ wg_client_private_keys[item] }}' | wg pubkey"
-  register: wg_public_client_key_result
-  with_inventory_hostnames:
-    - clients
+  shell: "echo '{{ item.value }}' | wg pubkey"
+  register: wg_client_public_keys_result
+  with_dict:
+    - "{{ wg_client_private_keys_dict }}"
   tags:
     - wg-generate-keys
 
 - name: Create client public keys dictionary
   set_fact:
-      wg_client_pub_keys: "{{ wg_client_pub_keys|default({}) | combine( {item.item: item.stdout} ) }}"
-  with_items: "{{ wg_public_client_key_result.results }}"
+      wg_client_public_keys_dict: "{{ wg_client_public_keys_dict|default({}) | combine( {item.item.key: item.stdout} ) }}"
+  with_items: "{{ wg_client_public_keys_result.results }}"
 
 - name: Create WireGuard server configuration directory
   file:
@@ -133,21 +133,21 @@
 - name: Generate WireGuard client configuration files
   template:
     src: client.j2
-    dest: "{{ wireguard_remote_directory }}/{{ item }}.conf"
+    dest: "{{ wireguard_remote_directory }}/{{ item.name }}.conf"
     owner: root
     group: root
     mode: 0600
-  with_inventory_hostnames:
-    - clients
+  with_items:
+    - "{{ wireguard_client_list }}"
   tags:
     - wg-config
   notify:
     - restart wireguard
 
 - name: Generate WireGuard client qr files
-  shell: "qrencode -o {{ wireguard_remote_directory }}/{{ item }}.png -t png < {{ wireguard_remote_directory }}/{{ item }}.conf"
-  with_inventory_hostnames:
-    - clients
+  shell: "qrencode -o {{ wireguard_remote_directory }}/{{ item.name }}.png -t png < {{ wireguard_remote_directory }}/{{ item.name }}.conf"
+  with_items:
+    - "{{ wireguard_client_list }}"
   tags:
     - wg-config
 

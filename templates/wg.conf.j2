@@ -16,13 +16,14 @@ PostDown = {{hostvars[inventory_hostname].wireguard_postdown}}
 SaveConfig = true
 {% endif %}
 
-{% for host in groups["clients"] %}
-  {% if host != inventory_hostname %}
+{% for client in wireguard_client_list %}
+  {% if client != inventory_hostname %}
     [Peer]
-    PublicKey = {{wg_client_pub_keys[host]}}
-    AllowedIPs = {{hostvars[host].wireguard_server_allowed_ip}}
-    {% if hostvars[host].wireguard_persistent_keepalive is defined %}
-    PersistentKeepalive = {{hostvars[host].wireguard_persistent_keepalive}}
+    # {{ client.name }}
+    PublicKey = {{wg_client_public_keys_dict[client.name]}}
+    AllowedIPs = {{client.wireguard_server_allowed_ip}}
+    {% if client.wireguard_persistent_keepalive is defined %}
+    PersistentKeepalive = {{client.wireguard_persistent_keepalive}}
     {% endif %}
   {% endif %}
 {% endfor %}
